@@ -170,8 +170,22 @@ def part3_borough_sql(clean, zones):
     Then call .explain() on this result and on part 2a's result and compare the plans in
     your report.
     """
-    # TODO
-    return None
+    clean.createOrReplaceTempView("trips")
+    zones.createOrReplaceTempView("zones")
+
+    result = spark.sql("""
+        SELECT 
+            z.borough,
+            COUNT(*) as trips,
+            ROUND(SUM(t.fare), 2) as revenue,
+            ROUND(AVG(t.distance_km), 2) as avg_distance_km
+        FROM trips t
+        JOIN zones z ON t.pickup_zone = z.zone_id
+        GROUP BY z.borough
+        ORDER BY revenue DESC
+    """)
+
+    return result
 
 
 clean, counts = part1_clean(raw)
