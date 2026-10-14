@@ -24,6 +24,7 @@ if len(sys.argv) != 3:
 in_dir, out_dir = sys.argv[1].rstrip("/"), sys.argv[2].rstrip("/")
 
 spark = SparkSession.builder.appName("TripAnalytics").getOrCreate()
+spark.sparkContext.setLogLevel("ERROR")
 
 
 def save(df, name, n=20):
@@ -70,8 +71,45 @@ def part1_clean(raw):
     DataFrame: rows_total, bad_time, bad_fare, removed, rows_kept.
     A row that breaks both rules counts in both bad_time and bad_fare, but once in removed.
     """
-    # TODO
-    return None, None
+    rows_total = raw.count()
+
+    with_flags = raw.withColumn(
+        "fare_numeric", col("fare").try_cast(DoubleType())
+    ).withColumn(
+        "bad_time", col("dropoff_ts") <= col("pickup_ts")
+    ).withColumn(
+        "bad_fare", col("fare_numeric").isNull()
+    )
+
+    bad_time = with_flags.filter(col("bad_time")).count()
+    bad_fare = with_flags.filter(col("bad_fare")).count()
+
+    clean = with_flags.filter(
+        ~col("bad_time") & ~col("bad_fare")
+    ).select(
+        col("trip_id"),
+        col("driver_id"),
+        col("pickup_zone"),
+        col("dropoff_zone"),
+        col("pickup_ts"),
+        col("dropoff_ts"),
+        col("distance_km"),
+        col("fare_numeric").alias("fare"),
+        col("payment_type"),
+        to_date(col("pickup_ts")).alias("day"),
+        ((col("dropoff_ts").cast("long") - col("pickup_ts").cast("long")) / 60).cast("int").alias("duration_min")
+    )
+
+    rows_kept = clean.count()
+    removed = rows_total - rows_kept
+
+    clean.write.mode("overwrite").parquet(f"{out_dir}/clean_trips")
+
+    counts = spark.createDataFrame([
+        (rows_total, bad_time, bad_fare, removed, rows_kept)
+    ], ["rows_total", "bad_time", "bad_fare", "removed", "rows_kept"])
+
+    return clean, counts
 
 
 # ---------------------------------------------------------------- Part 2a: zone revenue per day
