@@ -11,7 +11,7 @@ __pycache__/
 Thumbs.db
 
 # Generated input data (regenerate it with datagen.py and your seed)
-shared-folder/input/*.csv
+#shared-folder/input/*.csv
 shared-folder/datagen.py
 shared-folder/output/clean_trips/
 
