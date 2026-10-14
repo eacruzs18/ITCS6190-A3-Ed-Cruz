@@ -73,12 +73,11 @@ def part1_clean(raw):
     """
     rows_total = raw.count()
 
-    with_flags = raw.withColumn(
-        "fare_numeric", col("fare").try_cast(DoubleType())
-    ).withColumn(
-        "bad_time", col("dropoff_ts") <= col("pickup_ts")
-    ).withColumn(
-        "bad_fare", col("fare_numeric").isNull()
+    with_flags = (
+        raw
+        .withColumn("fare_numeric", col("fare").try_cast(DoubleType()))
+        .withColumn("bad_time", col("dropoff_ts") <= col("pickup_ts"))
+        .withColumn("bad_fare", col("fare_numeric").isNull())
     )
 
     bad_time = with_flags.filter(col("bad_time")).count()
@@ -119,8 +118,20 @@ def part2a_zone_revenue(clean, zones):
     Columns: day, zone_id, zone_name, trips, revenue (sum of fares, 2 decimals).
     One row per (day, zone) with at least one trip. Ordered by day, then zone_id.
     """
-    # TODO
-    return None
+    result = clean.groupBy(col("day"), col("pickup_zone")).agg(
+        count("*").alias("trips"),
+        ssum("fare").alias("revenue")
+    ).join(
+        zones, col("pickup_zone") == col("zone_id"), "inner"
+    ).select(
+        col("day"),
+        col("zone_id"),
+        col("zone_name"),
+        col("trips"),
+        sround(col("revenue"), 2).alias("revenue")
+    ).orderBy(col("day"), col("zone_id"))
+
+    return result
 
 
 # ---------------------------------------------------------------- Part 2b: driver busiest day
@@ -131,8 +142,22 @@ def part2b_driver_busiest_day(clean):
     Ties: the earliest day. Hint: count per (driver, day), then row_number over a window
     partitioned by driver and ordered by trips descending, day ascending.
     """
-    # TODO
-    return None
+    trips_per_day = clean.groupBy(col("driver_id"), col("day")).agg(
+        count("*").alias("trips")
+    )
+
+    window_spec = Window.partitionBy(col("driver_id")).orderBy(col("trips").desc(), col("day").asc())
+    result = trips_per_day.withColumn(
+        "rn", row_number().over(window_spec)
+    ).filter(
+        col("rn") == 1
+    ).select(
+        col("driver_id"),
+        col("day"),
+        col("trips")
+    ).orderBy(col("driver_id"))
+
+    return result
 
 
 # ---------------------------------------------------------------- Part 3: Spark SQL
