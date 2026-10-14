@@ -14,3 +14,5 @@ Thumbs.db
 shared-folder/input/*.csv
 shared-folder/datagen.py
 shared-folder/output/clean_trips/
+
+.idea/
